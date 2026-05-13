@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>업무 종합 현황 대시보드</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#0f1117;--bg2:#1a1d27;--bg3:#242736;--bg4:#2e3245;
+--border:#ffffff14;--border2:#ffffff22;
+--text:#e8eaf0;--text2:#9ca3b0;--text3:#6b7280;
+--green:#22c55e;--yellow:#f59e0b;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--teal:#14b8a6;
+--card-r:12px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;min-height:100vh}
+.dashboard{display:grid;grid-template-rows:auto auto 1fr auto;height:100vh;overflow:hidden}
+
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.header-left{display:flex;align-items:center;gap:16px}
+.logo{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.3px}
+.logo span{color:var(--blue)}
+.datetime{font-size:12px;color:var(--text2)}
+.header-kpis{display:flex;gap:8px}
+.kpi-chip{display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:5px 10px;font-size:11px}
+.dot{width:7px;height:7px;border-radius:50%}
+.dot.g{background:var(--green)}.dot.y{background:var(--yellow)}.dot.r{background:var(--red)}
+.kpi-chip .val{font-weight:600;font-size:12px}
+.header-right{display:flex;align-items:center;gap:8px}
+.urgent{background:#ef444420;border:1px solid #ef444440;border-radius:20px;padding:4px 10px;font-size:11px;color:#ef9999;display:flex;align-items:center;gap:5px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.user-avatar{width:30px;height:30px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff}
+.hdr-btn{border:none;border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px;font-weight:600;color:#fff}
+.hdr-btn.purple{background:var(--purple)}.hdr-btn.purple:hover{background:#9333ea}
+.hdr-btn.teal{background:var(--teal)}.hdr-btn.teal:hover{background:#0d9488}
+
+.exchange-bar{background:var(--bg3);border-bottom:1px solid var(--border);padding:6px 16px;display:flex;align-items:center;gap:20px;overflow-x:auto}
+.ex-item{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:11px}
+.ex-pair{color:var(--text2)}.ex-val{font-weight:600;font-size:12px}.ex-chg{font-size:10px}
+.up{color:var(--green)}.dn{color:var(--red)}.ex-sep{color:var(--border2);margin:0 4px}
+
+.main{display:grid;grid-template-columns:220px 1fr 240px;overflow:hidden}
+.left-panel{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;padding:12px}
+.center-panel{overflow-y:auto;padding:12px;background:var(--bg)}
+.right-panel{background:var(--bg2);border-left:1px solid var(--border);overflow-y:auto;padding:12px}
+
+.sec-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.sec-title i{font-size:13px}
+.mb12{margin-bottom:12px}
+
+.milestone-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--card-r);padding:10px;margin-bottom:8px}
+.ms-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.ms-name{font-size:12px;font-weight:600;line-height:1.3}
+.ms-dday{font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px}
+.ms-dday.ok{background:#22c55e20;color:#86efac}.ms-dday.warn{background:#f59e0b20;color:#fcd34d}.ms-dday.late{background:#ef444420;color:#fca5a5}
+.progress-bar{height:4px;background:var(--border2);border-radius:2px;overflow:hidden;margin-bottom:5px}
+.progress-fill{height:100%;border-radius:2px}
+.ms-meta{font-size:10px;color:var(--text3);display:flex;justify-content:space-between}
+
+.todo-item{display:flex;align-items:flex-start;gap:7px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.todo-item:last-child{border-bottom:none}
+.todo-cb{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--border2);flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center}
+.todo-cb.done{background:var(--green);border-color:var(--green)}.todo-cb.done::after{content:'✓';font-size:9px;color:#fff}
+.todo-text{flex:1;font-size:12px;line-height:1.4}.todo-text.done-text{text-decoration:line-through;color:var(--text3)}
+.todo-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;flex-shrink:0}
+.badge-critical{background:#ef444425;color:#fca5a5}.badge-high{background:#f59e0b25;color:#fcd34d}.badge-normal{background:#3b82f625;color:#93c5fd}
+.todo-add{width:100%;margin-top:8px;background:var(--bg3);border:1px dashed var(--border2);border-radius:8px;padding:6px;color:var(--text3);font-size:11px;cursor:pointer;text-align:center;display:flex;align-items:center;justify-content:center;gap:4px}
+.todo-add:hover{border-color:var(--blue);color:var(--blue)}
+.add-todo-input{display:none;margin-top:8px;gap:6px}
+.add-todo-input.show{display:flex}
+.add-todo-input input{flex:1;background:var(--bg4);border:1px solid var(--border2);border-radius:8px;padding:5px 8px;color:var(--text);font-size:11px;outline:none}
+.add-todo-input button{background:var(--blue);border:none;border-radius:8px;padding:5px 10px;color:#fff;font-size:10px;cursor:pointer}
+
+.swot-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.swot-cell{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px}
+.swot-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.s-s{color:#22c55e}.s-w{color:#ef4444}.s-o{color:#3b82f6}.s-t{color:#f59e0b}
+.swot-item{font-size:10px;color:var(--text2);line-height:1.5}
+.warn-item{display:flex;align-items:flex-start;gap:7px;padding:6px 8px;border-radius:8px;margin-bottom:5px;font-size:11px;border:1px solid}
+.warn-item.r{background:#ef444412;border-color:#ef444430;color:#fca5a5}.warn-item.y{background:#f59e0b12;border-color:#f59e0b30;color:#fcd34d}
+.warn-item i{font-size:14px;flex-shrink:0;margin-top:1px}
+
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:10px}
+.cal-day-hdr{text-align:center;font-size:9px;color:var(--text3);padding:2px}
+.cal-day{text-align:center;font-size:10px;padding:4px 2px;border-radius:4px;cursor:pointer;line-height:1}
+.cal-day.today{background:var(--blue);color:#fff;font-weight:700}.cal-day.has-event{color:var(--yellow)}.cal-day:hover:not(.today){background:var(--bg4)}.cal-day.other-month{color:var(--text3)}
+.schedule-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}.schedule-item:last-child{border-bottom:none}
+.sch-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sch-info{flex:1}.sch-title{font-size:11px;font-weight:600}.sch-time{font-size:10px;color:var(--text3)}
+
+.news-item{padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer}.news-item:last-child{border-bottom:none}
+.news-tag{font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-bottom:3px;display:inline-block}
+.tag-industry{background:#3b82f625;color:#93c5fd}.tag-competitor{background:#a855f725;color:#d8b4fe}.tag-internal{background:#22c55e25;color:#86efac}
+.news-title{font-size:11px;color:var(--text);line-height:1.4;margin-bottom:2px}.news-meta{font-size:10px;color:var(--text3)}
+
+.slack-item{padding:6px 0;border-bottom:1px solid var(--border)}.slack-item:last-child{border-bottom:none}
+.slack-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+.slack-ch{font-size:10px;font-weight:700;color:var(--blue)}.slack-time{font-size:9px;color:var(--text3)}.slack-msg{font-size:10px;color:var(--text2);line-height:1.4}
+.badge-num{background:var(--red);color:#fff;font-size:9px;border-radius:10px;padding:1px 5px;font-weight:700}
+
+.chat-area{background:var(--bg3);border:1px solid var(--border);border-radius:var(--card-r);display:flex;flex-direction:column;height:280px}
+.chat-msgs{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:90%;padding:7px 10px;border-radius:10px;font-size:11px;line-height:1.5;word-break:break-word}
+.msg.ai{background:var(--bg4);color:var(--text);align-self:flex-start;border-bottom-left-radius:3px}
+.msg.user{background:#3b82f640;color:var(--text);align-self:flex-end;border-bottom-right-radius:3px}
+.msg.law{background:#14b8a615;color:var(--text);align-self:flex-start;border-bottom-left-radius:3px;border:1px solid #14b8a630}
+.msg.loading{color:var(--text3);animation:pulse 1.5s infinite}
+.chat-input-row{display:flex;gap:6px;padding:8px;border-top:1px solid var(--border)}
+.chat-input-row input{flex:1;background:var(--bg4);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:11px;outline:none}
+.chat-input-row input:focus{border-color:var(--blue)}
+.chat-send{border:none;border-radius:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:14px;flex-shrink:0}
+.chat-send.blue{background:var(--blue)}.chat-send.blue:hover{background:#2563eb}
+.chat-send.teal{background:var(--teal)}.chat-send.teal:hover{background:#0d9488}
+.chat-send:disabled{background:var(--bg4);color:var(--text3);cursor:default}
+
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--card-r);padding:12px}
+.chart-title{font-size:11px;font-weight:600;color:var(--text2);margin-bottom:10px;display:flex;align-items:center;gap:5px}
+
+.team-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}.team-item:last-child{border-bottom:none}
+.t-avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0}
+.t-info{flex:1}.t-name{font-size:11px;font-weight:600}.t-task{font-size:10px;color:var(--text3)}
+.t-status{font-size:9px;padding:2px 6px;border-radius:10px}
+.t-busy{background:#ef444420;color:#fca5a5}.t-ok{background:#22c55e20;color:#86efac}.t-away{background:#6b728025;color:#9ca3af}
+.t-load{height:3px;width:60px;background:var(--border2);border-radius:2px;margin-top:2px}
+.t-load-fill{height:100%;border-radius:2px}
+
+.footer{background:var(--bg2);border-top:1px solid var(--border);padding:6px 16px;display:flex;justify-content:space-between;align-items:center}
+.footer-stat{display:flex;gap:16px}
+.f-item{font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px}
+.tg-btn{background:#229ED920;border:1px solid #229ED940;border-radius:20px;padding:4px 10px;font-size:10px;color:#6acfe0;cursor:pointer;display:flex;align-items:center;gap:4px}
+.tg-btn:hover{background:#229ED930}
+.ai-chip{color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;font-weight:600}
+.ai-chip.p{background:var(--purple)}
+.ai-chip.t{background:var(--teal)}
+.donut-wrap{display:flex;align-items:center;gap:10px;margin:8px 0}
+.donut-info{flex:1}.donut-num{font-size:22px;font-weight:700}.donut-sub{font-size:10px;color:var(--text3)}
+
+/* ===== MODALS ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:900px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column}
+.modal.law-modal{max-width:860px}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.modal-close{background:none;border:none;color:var(--text2);cursor:pointer;font-size:20px;padding:2px;line-height:1;border-radius:6px}
+.modal-close:hover{background:var(--bg3);color:var(--text)}
+.modal-body{overflow-y:auto;padding:20px;flex:1}
+
+.tab-bar{display:flex;gap:4px;margin-bottom:16px;background:var(--bg3);border-radius:10px;padding:4px}
+.tab{flex:1;padding:7px;text-align:center;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text3);border:none;background:none}
+.tab.active{background:var(--blue);color:#fff}
+.tab.active.teal-tab{background:var(--teal)}
+.tab:hover:not(.active){background:var(--bg4);color:var(--text)}
+.tab-content{display:none}.tab-content.active{display:block}
+
+/* CARD MODAL styles */
+.upload-zone{border:2px dashed var(--border2);border-radius:12px;padding:30px 20px;text-align:center;cursor:pointer;position:relative}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--purple);background:#a855f710}
+.upload-icon{font-size:40px;color:var(--purple);margin-bottom:10px}
+.upload-title{font-size:14px;font-weight:600;margin-bottom:6px}
+.upload-sub{font-size:11px;color:var(--text3);line-height:1.6}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.file-types{display:flex;justify-content:center;gap:8px;margin-top:12px}
+.ft-badge{font-size:10px;padding:3px 8px;border-radius:8px;font-weight:600}
+.ft-img{background:#22c55e20;color:#86efac}.ft-pdf{background:#ef444420;color:#fca5a5}.ft-xls{background:#22c55e20;color:#86efac}
+.period-bar{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.period-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:11px;cursor:pointer;font-weight:600}
+.period-btn.active{background:var(--purple);border-color:var(--purple);color:#fff}
+.analysis-loading{text-align:center;padding:40px;color:var(--text3)}
+.spinner{width:32px;height:32px;border:3px solid var(--border2);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+.spinner.p{border-top-color:var(--purple)}
+.spinner.t{border-top-color:var(--teal)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.sum-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+.sum-val{font-size:18px;font-weight:700;margin-bottom:3px}.sum-label{font-size:10px;color:var(--text3)}
+.insight-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.insight-item{display:flex;align-items:flex-start;gap:10px;background:var(--bg3);border-radius:10px;padding:10px 12px;border:1px solid var(--border)}
+.insight-icon{font-size:18px;flex-shrink:0}.insight-body{flex:1}
+.insight-title{font-size:12px;font-weight:600;margin-bottom:3px}.insight-desc{font-size:11px;color:var(--text2);line-height:1.5}
+.insight-tag{font-size:9px;padding:2px 6px;border-radius:8px;font-weight:700;margin-top:4px;display:inline-block}
+.it-warn{background:#ef444420;color:#fca5a5}.it-ok{background:#22c55e20;color:#86efac}.it-info{background:#3b82f625;color:#93c5fd}.it-tip{background:#a855f725;color:#d8b4fe}
+.category-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.ai-answer{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12px;line-height:1.7;color:var(--text2);white-space:pre-wrap;word-break:break-word}
+.file-chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg4);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;font-size:11px;margin:4px 4px 8px 0}
+.file-chip i{font-size:14px;color:var(--purple)}
+
+/* ===== LAW MODAL styles ===== */
+.law-header-banner{background:linear-gradient(135deg,#0d3d38,#0f2d3d);border:1px solid #14b8a630;border-radius:12px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px}
+.law-avatar{width:48px;height:48px;border-radius:50%;background:#14b8a620;border:2px solid #14b8a650;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.law-intro{flex:1}
+.law-intro h3{font-size:14px;font-weight:700;color:#5eead4;margin-bottom:4px}
+.law-intro p{font-size:11px;color:#99d6d0;line-height:1.5}
+.law-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.law-tag{font-size:9px;padding:2px 8px;border-radius:10px;background:#14b8a620;color:#5eead4;border:1px solid #14b8a630;cursor:pointer}
+.law-tag:hover{background:#14b8a630}
+
+.law-quick-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.law-quick-btn{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 8px;cursor:pointer;text-align:center;font-size:10px;color:var(--text2);line-height:1.4}
+.law-quick-btn:hover{border-color:var(--teal);color:#5eead4;background:#14b8a610}
+.law-quick-btn i{display:block;font-size:18px;color:var(--teal);margin-bottom:4px}
+
+.law-chat-area{background:var(--bg3);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;height:360px}
+.law-chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+
+.law-result-card{background:var(--bg3);border:1px solid #14b8a630;border-radius:10px;padding:14px;margin-bottom:10px}
+.law-result-title{font-size:12px;font-weight:700;color:#5eead4;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.law-result-body{font-size:11px;color:var(--text2);line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.law-cite{display:inline-flex;align-items:center;gap:4px;background:#14b8a615;border:1px solid #14b8a630;border-radius:6px;padding:2px 7px;font-size:9px;color:#5eead4;margin:2px}
+.law-disclaimer{background:#f59e0b10;border:1px solid #f59e0b30;border-radius:8px;padding:8px 10px;font-size:10px;color:#fcd34d;margin-top:10px;display:flex;align-items:flex-start;gap:6px}
+
+.search-result-item{background:var(--bg4);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px}
+.search-result-title{font-size:12px;font-weight:600;color:var(--teal);margin-bottom:4px}
+.search-result-body{font-size:11px;color:var(--text2);line-height:1.5}
+.search-result-meta{font-size:10px;color:var(--text3);margin-top:4px}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="dashboard">
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo"><span>●</span> WorkBoard</div>
+    <div class="datetime" id="datetime"></div>
+  </div>
+  <div class="header-kpis">
+    <div class="kpi-chip"><div class="dot g"></div><span>매출목표</span><span class="val">94%</span></div>
+    <div class="kpi-chip"><div class="dot y"></div><span>프로젝트</span><span class="val">78%</span></div>
+    <div class="kpi-chip"><div class="dot r"></div><span>CS처리율</span><span class="val">62%</span></div>
+    <div class="kpi-chip"><div class="dot g"></div><span>팀효율</span><span class="val">88%</span></div>
+  </div>
+  <div class="header-right">
+    <div class="urgent"><i class="ti ti-alert-triangle"></i> 마감 임박 2건</div>
+    <button class="hdr-btn teal" onclick="openLawModal()"><i class="ti ti-scale" style="font-size:13px"></i> AI 변호사</button>
+    <button class="hdr-btn purple" onclick="openCardModal()"><i class="ti ti-credit-card" style="font-size:13px"></i> 법인카드 분석</button>
+    <div class="user-avatar">홍길</div>
+  </div>
+</header>
+
+<!-- EXCHANGE BAR -->
+<div class="exchange-bar">
+  <span style="font-size:10px;color:var(--text3);font-weight:600">환율</span>
+  <div class="ex-item"><span>🇺🇸</span><span class="ex-pair">USD/KRW</span><span class="ex-val" id="ex-usd">1,328.50</span><span class="ex-chg up" id="ex-usd-chg">▲ 0.32%</span></div>
+  <span class="ex-sep">|</span>
+  <div class="ex-item"><span>🇪🇺</span><span class="ex-pair">EUR/KRW</span><span class="ex-val" id="ex-eur">1,441.20</span><span class="ex-chg dn" id="ex-eur-chg">▼ 0.18%</span></div>
+  <span class="ex-sep">|</span>
+  <div class="ex-item"><span>🇯🇵</span><span class="ex-pair">JPY/KRW</span><span class="ex-val" id="ex-jpy">8.87</span><span class="ex-chg up" id="ex-jpy-chg">▲ 0.55%</span></div>
+  <span class="ex-sep">|</span>
+  <div class="ex-item"><span>🇨🇳</span><span class="ex-pair">CNY/KRW</span><span class="ex-val" id="ex-cny">183.10</span><span class="ex-chg dn" id="ex-cny-chg">▼ 0.09%</span></div>
+  <span class="ex-sep">|</span>
+  <span style="font-size:10px;color:var(--text3)">15분마다 갱신</span>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- LEFT -->
+  <div class="left-panel">
+    <div class="sec-title mb12"><i class="ti ti-flag"></i> 마일스톤</div>
+    <div class="milestone-card">
+      <div class="ms-header"><div class="ms-name">2025 상반기 결산 보고</div><div class="ms-dday warn">D-8</div></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:72%;background:var(--yellow)"></div></div>
+      <div class="ms-meta"><span>진행률 72%</span><span>05.21 마감</span></div>
+    </div>
+    <div class="milestone-card">
+      <div class="ms-header"><div class="ms-name">ISO 인증 갱신 서류 제출</div><div class="ms-dday late">D-2</div></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:45%;background:var(--red)"></div></div>
+      <div class="ms-meta"><span>진행률 45%</span><span>05.15 마감</span></div>
+    </div>
+    <div class="milestone-card">
+      <div class="ms-header"><div class="ms-name">신규 ERP 시스템 이관</div><div class="ms-dday ok">D-24</div></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:88%;background:var(--green)"></div></div>
+      <div class="ms-meta"><span>진행률 88%</span><span>06.06 마감</span></div>
+    </div>
+    <div class="sec-title mb12" style="margin-top:14px"><i class="ti ti-users"></i> 팀원 현황</div>
+    <div class="team-item"><div class="t-avatar" style="background:#3b82f6">김</div><div class="t-info"><div style="display:flex;align-items:center;justify-content:space-between"><div class="t-name">김지수 대리</div><div class="t-status t-busy">과부하</div></div><div class="t-task">ISO 서류 / 결산 지원</div><div class="t-load"><div class="t-load-fill" style="width:92%;background:var(--red)"></div></div></div></div>
+    <div class="team-item"><div class="t-avatar" style="background:#a855f7">이</div><div class="t-info"><div style="display:flex;align-items:center;justify-content:space-between"><div class="t-name">이준혁 사원</div><div class="t-status t-ok">정상</div></div><div class="t-task">ERP 이관 작업</div><div class="t-load"><div class="t-load-fill" style="width:55%;background:var(--green)"></div></div></div></div>
+    <div class="team-item"><div class="t-avatar" style="background:#22c55e">박</div><div class="t-info"><div style="display:flex;align-items:center;justify-content:space-between"><div class="t-name">박소연 과장</div><div class="t-status t-away">외근</div></div><div class="t-task">고객사 미팅 (오후)</div><div class="t-load"><div class="t-load-fill" style="width:40%;background:var(--yellow)"></div></div></div></div>
+    <div class="team-item"><div class="t-avatar" style="background:#f59e0b">최</div><div class="t-info"><div style="display:flex;align-items:center;justify-content:space-between"><div class="t-name">최민재 사원</div><div class="t-status t-ok">정상</div></div><div class="t-task">주간 리포트 작성</div><div class="t-load"><div class="t-load-fill" style="width:68%;background:var(--blue)"></div></div></div></div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center-panel">
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title"><i class="ti ti-chart-bar" style="font-size:13px"></i> 주간 KPI 달성률 (%)</div>
+        <div style="position:relative;height:140px"><canvas id="kpiChart" role="img" aria-label="주간 KPI 달성률">KPI</canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title"><i class="ti ti-circle-check" style="font-size:13px"></i> Todo 완료율</div>
+        <div class="donut-wrap">
+          <div style="position:relative;width:80px;height:80px;flex-shrink:0"><canvas id="donutChart" role="img" aria-label="Todo 완료율">완료 8건</canvas></div>
+          <div class="donut-info"><div class="donut-num" id="done-pct">61%</div><div class="donut-sub">완료 <span id="done-cnt" style="color:var(--green);font-weight:600">8</span> / 전체 <span id="total-cnt">13</span></div><div style="margin-top:6px;font-size:10px;color:var(--text3)">이번 주 누적</div></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="chart-card">
+        <div class="chart-title"><i class="ti ti-checkbox" style="font-size:13px"></i> 우선순위 Todo <span class="ai-chip p">AI정렬</span></div>
+        <div id="todo-list">
+          <div class="todo-item" onclick="toggleTodo(this)"><div class="todo-cb"></div><div class="todo-text">ISO 인증 갱신 서류 최종 검토</div><div class="todo-badge badge-critical">긴급</div></div>
+          <div class="todo-item" onclick="toggleTodo(this)"><div class="todo-cb"></div><div class="todo-text">상반기 결산 데이터 취합 (재무팀)</div><div class="todo-badge badge-critical">긴급</div></div>
+          <div class="todo-item" onclick="toggleTodo(this)"><div class="todo-cb"></div><div class="todo-text">ERP 이관 테스트 결과 보고서 작성</div><div class="todo-badge badge-high">중요</div></div>
+          <div class="todo-item" onclick="toggleTodo(this)"><div class="todo-cb done"></div><div class="todo-text done-text">주간 업무 회의록 정리 및 공유</div><div class="todo-badge badge-normal">일반</div></div>
+          <div class="todo-item" onclick="toggleTodo(this)"><div class="todo-cb done"></div><div class="todo-text done-text">신입 직원 온보딩 자료 업데이트</div><div class="todo-badge badge-normal">일반</div></div>
+          <div class="todo-item" onclick="toggleTodo(this)"><div class="todo-cb"></div><div class="todo-text">협력사 계약 만료 현황 점검</div><div class="todo-badge badge-high">중요</div></div>
+        </div>
+        <div class="todo-add" onclick="showAddTodo()"><i class="ti ti-plus" style="font-size:12px"></i> 항목 추가</div>
+        <div class="add-todo-input" id="add-todo-row"><input type="text" id="new-todo-input" placeholder="할 일 입력..."><button onclick="addTodo()">추가</button></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title"><i class="ti ti-brain" style="font-size:13px"></i> SWOT 분석 <span class="ai-chip p">AI</span></div>
+        <div class="swot-grid">
+          <div class="swot-cell"><div class="swot-label s-s">● 강점</div><div class="swot-item">• ERP 이관 88% 진행<br>• 팀 효율성 88%</div></div>
+          <div class="swot-cell"><div class="swot-label s-w">● 약점</div><div class="swot-item">• CS처리율 62%↓<br>• 김지수 대리 과부하</div></div>
+          <div class="swot-cell"><div class="swot-label s-o">● 기회</div><div class="swot-item">• ISO 인증 → 신규 수주<br>• ERP 완료 시 비용 절감</div></div>
+          <div class="swot-cell"><div class="swot-label s-t">● 위협</div><div class="swot-item">• ISO 서류 D-2 리스크<br>• 경쟁사 Q3 출시 예정</div></div>
+        </div>
+        <div class="warn-item r"><i class="ti ti-alert-triangle"></i><span><b>ISO 서류 D-2</b> — 현재 45% 진행</span></div>
+        <div class="warn-item y"><i class="ti ti-trending-down"></i><span>CS처리율 3주 연속 하락 추세</span></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="chart-card">
+        <div class="chart-title"><i class="ti ti-flame" style="font-size:13px"></i> 핫이슈 트래커 <span class="ai-chip p">AI</span></div>
+        <div class="news-item"><span class="news-tag tag-industry">업계</span><div class="news-title">공공기관 전자조달 시스템 개편안 행정예고</div><div class="news-meta">오늘 9:12 · 조달청</div></div>
+        <div class="news-item"><span class="news-tag tag-competitor">경쟁사</span><div class="news-title">A사, 통합 업무관리 플랫폼 v3.0 출시</div><div class="news-meta">어제 · IT 비즈뉴스</div></div>
+        <div class="news-item"><span class="news-tag tag-internal">내부</span><div class="news-title">2분기 예산 집행율 68% — 재배분 논의</div><div class="news-meta">오늘 · 재무팀</div></div>
+        <div class="news-item"><span class="news-tag tag-industry">업계</span><div class="news-title">전자세금계산서 의무 발행 기준 하향 (7월~)</div><div class="news-meta">2일 전 · 국세청</div></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title"><i class="ti ti-brand-slack" style="font-size:13px"></i> Slack 채널 <span class="badge-num">3</span></div>
+        <div class="slack-item"><div class="slack-header"><span class="slack-ch"># 전사공지</span><span class="slack-time">11:30</span></div><div class="slack-msg">5/15(목) 오후 전 직원 긴급 회의 — 2층 회의실</div></div>
+        <div class="slack-item"><div class="slack-header"><span class="slack-ch"># 행정팀</span><span class="slack-time" style="display:flex;align-items:center;gap:4px">09:45 <span class="badge-num">2</span></span></div><div class="slack-msg">ISO 서류 3-B 양식 최신본으로 교체 필요합니다.</div></div>
+        <div class="slack-item"><div class="slack-header"><span class="slack-ch"># ERP-이관</span><span class="slack-time" style="display:flex;align-items:center;gap:4px">어제 <span class="badge-num">1</span></span></div><div class="slack-msg">UAT 1차 완료. 피드백 문서 공유드립니다.</div></div>
+        <div class="slack-item"><div class="slack-header"><span class="slack-ch"># 메일 미읽음</span><span class="slack-time">오전</span></div><div class="slack-msg" style="color:var(--yellow)">협력사 (주)대한물산 계약 갱신 요청</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right-panel">
+    <div class="sec-title mb12"><i class="ti ti-calendar"></i> 5월 캘린더</div>
+    <div class="cal-grid" id="calendar"></div>
+    <div class="sec-title mb12" style="margin-top:10px"><i class="ti ti-clock"></i> 오늘 일정</div>
+    <div class="schedule-item"><div class="sch-dot" style="background:var(--blue)"></div><div class="sch-info"><div class="sch-title">전략기획 팀 주간 회의</div><div class="sch-time">09:00 — 10:00 · 2층 회의실</div></div></div>
+    <div class="schedule-item"><div class="sch-dot" style="background:var(--red)"></div><div class="sch-info"><div class="sch-title">ISO 서류 마감 점검</div><div class="sch-time">14:00 — 15:00 · Zoom</div></div></div>
+    <div class="schedule-item"><div class="sch-dot" style="background:var(--yellow)"></div><div class="sch-info"><div class="sch-title">상반기 결산 데이터 기한</div><div class="sch-time">17:00까지 · 재무팀 제출</div></div></div>
+    <div class="schedule-item"><div class="sch-dot" style="background:var(--purple)"></div><div class="sch-info"><div class="sch-title">박소연 과장 고객사 미팅</div><div class="sch-time">14:30 — 16:00 · 외근</div></div></div>
+
+    <!-- AI 챗봇 + AI 변호사 나란히 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">
+      <div>
+        <div class="sec-title mb12"><i class="ti ti-robot"></i> AI 챗봇 <span class="ai-chip p">Claude</span></div>
+        <div class="chat-area" style="height:240px">
+          <div class="chat-msgs" id="chat-msgs">
+            <div class="msg ai">ISO 서류 D-2가 가장 긴급합니다. 무엇을 도와드릴까요?</div>
+          </div>
+          <div class="chat-input-row">
+            <input type="text" id="chat-in" placeholder="질문 입력..." onkeydown="if(event.key==='Enter')sendChat()">
+            <button class="chat-send blue" id="chat-btn" onclick="sendChat()"><i class="ti ti-send" style="font-size:13px"></i></button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="sec-title mb12"><i class="ti ti-scale"></i> AI 변호사 <span class="ai-chip t">한국법령</span></div>
+        <div class="chat-area" style="height:240px;border-color:#14b8a630">
+          <div class="chat-msgs" id="law-side-msgs">
+            <div class="msg law" style="font-size:10px">한국법령 DB 연동. 법령·판례·행정 절차를 질문하세요.<br><span style="color:var(--text3);font-size:9px;display:flex;flex-wrap:wrap;gap:3px;margin-top:5px"><span class="law-tag" onclick="setSideLawQ('근로계약서 필수 기재사항은?')" style="cursor:pointer">근로계약</span><span class="law-tag" onclick="setSideLawQ('개인정보보호법 위반 과태료는?')" style="cursor:pointer">개인정보</span><span class="law-tag" onclick="setSideLawQ('법인카드 세법 처리는?')" style="cursor:pointer">법인카드</span></span></div>
+          </div>
+          <div class="chat-input-row">
+            <input type="text" id="law-side-in" placeholder="법률 질문..." onkeydown="if(event.key==='Enter')sendLawSideChat()">
+            <button class="chat-send teal" id="law-side-btn" onclick="sendLawSideChat()"><i class="ti ti-send" style="font-size:13px"></i></button>
+          </div>
+        </div>
+        <div style="text-align:right;margin-top:4px"><span style="font-size:9px;color:var(--teal);cursor:pointer" onclick="openLawModal()">상세 상담 열기 →</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-stat">
+    <div class="f-item"><i class="ti ti-checkbox"></i> 완료 8 / 13</div>
+    <div class="f-item"><i class="ti ti-flag"></i> 마일스톤 3건</div>
+    <div class="f-item"><i class="ti ti-users"></i> 팀원 4명</div>
+    <div class="f-item"><i class="ti ti-mail"></i> 미읽음 7건</div>
+    <div class="f-item" style="color:var(--teal);cursor:pointer" onclick="openLawModal()"><i class="ti ti-scale"></i> AI 변호사 상담</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div style="font-size:10px;color:var(--text3)">마지막 갱신: <span id="last-update"></span></div>
+    <div class="tg-btn"><i class="ti ti-brand-telegram" style="font-size:12px"></i> 텔레그램 알림</div>
+  </div>
+</footer>
+</div>
+
+<!-- ===== LAW MODAL ===== -->
+<div class="modal-overlay" id="lawModal" style="display:none" onclick="if(event.target===this)closeLawModal()">
+  <div class="modal law-modal">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-scale" style="color:var(--teal)"></i> AI 변호사 <span class="ai-chip t">한국법령 MCP</span></div>
+      <button class="modal-close" onclick="closeLawModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <!-- Banner -->
+      <div class="law-header-banner">
+        <div class="law-avatar">⚖️</div>
+        <div class="law-intro">
+          <h3>AI 법률 자문 어시스턴트</h3>
+          <p>한국법령정보원 데이터베이스와 실시간 연동되어 법령 검색, 판례 조회, 행정 절차 안내를 제공합니다.<br>계약·노무·공정거래·행정 등 업무상 법률 문제를 질문해보세요.</p>
+          <div class="law-tags">
+            <span class="law-tag" onclick="setLawQ('근로계약서 필수 기재사항은?')">근로계약</span>
+            <span class="law-tag" onclick="setLawQ('전자서명법상 전자계약 효력은?')">전자계약</span>
+            <span class="law-tag" onclick="setLawQ('공정거래법 위반 유형과 제재는?')">공정거래</span>
+            <span class="law-tag" onclick="setLawQ('개인정보보호법 위반 시 과태료는?')">개인정보</span>
+            <span class="law-tag" onclick="setLawQ('법인카드 사용 규정과 세법 처리는?')">법인카드</span>
+            <span class="law-tag" onclick="setLawQ('산업재해 처리 절차와 사용자 의무는?')">산재처리</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick buttons -->
+      <div class="law-quick-btns">
+        <div class="law-quick-btn" onclick="setLawQ('계약서 검토 시 주의해야 할 불공정 조항은?')"><i class="ti ti-file-text"></i>계약서 검토</div>
+        <div class="law-quick-btn" onclick="setLawQ('해고 예고 기간과 해고 절차는?')"><i class="ti ti-user-minus"></i>노무·해고</div>
+        <div class="law-quick-btn" onclick="setLawQ('행정처분 불복 절차와 행정심판 방법은?')"><i class="ti ti-gavel"></i>행정심판</div>
+        <div class="law-quick-btn" onclick="setLawQ('하도급법상 금지 행위와 제재 기준은?')"><i class="ti ti-building-factory"></i>하도급법</div>
+        <div class="law-quick-btn" onclick="setLawQ('전자세금계산서 발행 의무와 가산세는?')"><i class="ti ti-receipt-tax"></i>세금계산서</div>
+        <div class="law-quick-btn" onclick="setLawQ('개인정보 처리방침 필수 포함 사항은?')"><i class="ti ti-shield-lock"></i>개인정보</div>
+      </div>
+
+      <!-- Chat -->
+      <div class="law-chat-area">
+        <div class="law-chat-msgs" id="law-chat-msgs">
+          <div class="msg law">안녕하세요. 저는 한국법령 데이터베이스에 연결된 AI 법률 자문 어시스턴트입니다.<br><br>법령 검색, 판례 조회, 행정 절차 안내, 계약서 검토 등 업무상 법률 문제를 도와드립니다.<br><br>위 빠른 질문 버튼을 클릭하거나 직접 질문을 입력해주세요.</div>
+        </div>
+        <div style="display:flex;gap:6px;padding:10px;border-top:1px solid var(--border)">
+          <input type="text" id="law-chat-in" style="flex:1;background:var(--bg4);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;outline:none" placeholder="법률 질문을 입력하세요... (예: 계약 해지 통보 기간은?)" onkeydown="if(event.key==='Enter')sendLawChat()">
+          <button onclick="sendLawChat()" id="law-send-btn" class="chat-send teal" style="width:36px;height:36px"><i class="ti ti-send" style="font-size:14px"></i></button>
+        </div>
+      </div>
+      <div class="law-disclaimer"><i class="ti ti-info-circle" style="font-size:14px;flex-shrink:0;margin-top:1px"></i>본 AI 법률 자문은 참고용 정보 제공 목적이며, 법적 효력이 있는 전문 법률 자문을 대체하지 않습니다. 중요한 법적 사안은 반드시 전문 변호사와 상담하세요.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CARD MODAL ===== -->
+<div class="modal-overlay" id="cardModal" style="display:none" onclick="if(event.target===this)closeCardModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-credit-card" style="color:var(--purple)"></i> 법인카드 사용 내역 분석 <span class="ai-chip p">Claude AI</span></div>
+      <button class="modal-close" onclick="closeCardModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="tab-bar">
+        <button class="tab active" onclick="switchCardTab('upload',this)"><i class="ti ti-upload" style="font-size:12px"></i> 파일 업로드</button>
+        <button class="tab" onclick="switchCardTab('monthly',this)"><i class="ti ti-calendar-month" style="font-size:12px"></i> 월간</button>
+        <button class="tab" onclick="switchCardTab('quarterly',this)"><i class="ti ti-calendar-stats" style="font-size:12px"></i> 분기</button>
+        <button class="tab" onclick="switchCardTab('annual',this)"><i class="ti ti-calendar-year" style="font-size:12px"></i> 연간</button>
+        <button class="tab" onclick="switchCardTab('cardchat',this)"><i class="ti ti-message-circle" style="font-size:12px"></i> AI 상담</button>
+      </div>
+      <div id="card-tab-upload" class="tab-content active">
+        <div class="upload-zone" id="uploadZone" ondragover="handleDrag(event)" ondragleave="handleDragLeave()" ondrop="handleDrop(event)">
+          <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.pdf,.xlsx,.xls,.csv" onchange="handleFiles(event)">
+          <div class="upload-icon"><i class="ti ti-cloud-upload"></i></div>
+          <div class="upload-title">법인카드 내역 파일 업로드</div>
+          <div class="upload-sub">드래그 앤 드롭 또는 클릭하여 선택<br>여러 파일 동시 업로드 가능</div>
+          <div class="file-types"><span class="ft-badge ft-img">이미지</span><span class="ft-badge ft-pdf">PDF</span><span class="ft-badge ft-xls">Excel·CSV</span></div>
+        </div>
+        <div id="fileList" style="margin-top:10px"></div>
+        <div id="uploadActions" style="display:none;margin-top:12px">
+          <div class="period-bar">
+            <span style="font-size:11px;color:var(--text3);align-self:center">분석 기간:</span>
+            <button class="period-btn active" onclick="selectPeriod(this,'monthly')">월간</button>
+            <button class="period-btn" onclick="selectPeriod(this,'quarterly')">분기별</button>
+            <button class="period-btn" onclick="selectPeriod(this,'annual')">연간</button>
+            <button class="period-btn" onclick="selectPeriod(this,'all')">전체</button>
+          </div>
+          <button onclick="runAnalysis()" style="width:100%;background:var(--purple);border:none;border-radius:10px;padding:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-sparkles"></i> AI 분석 시작</button>
+        </div>
+      </div>
+      <div id="card-tab-monthly" class="tab-content"><div id="monthly-result"><div style="text-align:center;padding:40px;color:var(--text3)"><i class="ti ti-upload" style="font-size:32px"></i><p style="margin-top:8px;font-size:12px">파일 업로드 후 분석을 실행하세요</p></div></div></div>
+      <div id="card-tab-quarterly" class="tab-content"><div id="quarterly-result"><div style="text-align:center;padding:40px;color:var(--text3)"><i class="ti ti-upload" style="font-size:32px"></i><p style="margin-top:8px;font-size:12px">파일 업로드 후 분석을 실행하세요</p></div></div></div>
+      <div id="card-tab-annual" class="tab-content"><div id="annual-result"><div style="text-align:center;padding:40px;color:var(--text3)"><i class="ti ti-upload" style="font-size:32px"></i><p style="margin-top:8px;font-size:12px">파일 업로드 후 분석을 실행하세요</p></div></div></div>
+      <div id="card-tab-cardchat" class="tab-content">
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;height:420px">
+          <div id="card-chat-msgs" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px">
+            <div class="msg ai">법인카드 내역 파일을 업로드하면 데이터 기반 상세 분석 질문이 가능합니다.</div>
+          </div>
+          <div style="display:flex;gap:6px;padding:10px;border-top:1px solid var(--border)">
+            <input type="text" id="card-chat-in" style="flex:1;background:var(--bg4);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;outline:none" placeholder="법인카드 내역에 대해 질문하세요..." onkeydown="if(event.key==='Enter')sendCardChat()">
+            <button onclick="sendCardChat()" class="chat-send purple" style="background:var(--purple);border:none;border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:15px;flex-shrink:0"><i class="ti ti-send"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== DATETIME =====
+function updateTime(){
+  const n=new Date();
+  document.getElementById('datetime').textContent=n.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'short'})+' '+n.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('last-update').textContent=n.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+updateTime();setInterval(updateTime,1000);
+
+function updateExchange(){
+  [{id:'ex-usd',c:'ex-usd-chg',b:1328.5},{id:'ex-eur',c:'ex-eur-chg',b:1441.2},{id:'ex-jpy',c:'ex-jpy-chg',b:8.87},{id:'ex-cny',c:'ex-cny-chg',b:183.1}].forEach(r=>{
+    const d=(Math.random()-.5)*.8,v=r.b+d,p=((d/r.b)*100).toFixed(2);
+    document.getElementById(r.id).textContent=v.toFixed(2);
+    const el=document.getElementById(r.c);el.textContent=(d>=0?'▲ ':'▼ ')+Math.abs(p)+'%';el.className='ex-chg '+(d>=0?'up':'dn');
+  });
+}
+setInterval(updateExchange,15000);
+
+function buildCalendar(){
+  const cal=document.getElementById('calendar');
+  ['일','월','화','수','목','금','토'].forEach(d=>{const h=document.createElement('div');h.className='cal-day-hdr';h.textContent=d;cal.appendChild(h);});
+  const t=new Date(),y=t.getFullYear(),m=t.getMonth(),first=new Date(y,m,1).getDay(),last=new Date(y,m+1,0).getDate(),ev=[5,8,13,15,21,26,28];
+  for(let i=0;i<first;i++){const b=document.createElement('div');b.className='cal-day other-month';cal.appendChild(b);}
+  for(let d=1;d<=last;d++){const el=document.createElement('div');el.className='cal-day';el.textContent=d;if(d===t.getDate())el.classList.add('today');else if(ev.includes(d))el.classList.add('has-event');cal.appendChild(el);}
+}
+buildCalendar();
+
+new Chart(document.getElementById('kpiChart').getContext('2d'),{type:'bar',data:{labels:['매출','프로젝트','CS처리','팀효율','예산'],datasets:[{label:'달성률',data:[94,78,62,88,68],backgroundColor:['#22c55e80','#22c55e80','#ef444480','#22c55e80','#f59e0b80'],borderColor:['#22c55e','#22c55e','#ef4444','#22c55e','#f59e0b'],borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9ca3b0',font:{size:9}},grid:{color:'#ffffff08'}},y:{ticks:{color:'#9ca3b0',font:{size:9},callback:v=>v+'%'},grid:{color:'#ffffff08'},min:0,max:100}}}});
+
+const donutChart=new Chart(document.getElementById('donutChart').getContext('2d'),{type:'doughnut',data:{labels:['완료','미완료'],datasets:[{data:[8,5],backgroundColor:['#22c55e','#ffffff15'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'75%',plugins:{legend:{display:false},tooltip:{enabled:false}}}});
+
+function toggleTodo(item){item.querySelector('.todo-cb').classList.toggle('done');item.querySelector('.todo-text').classList.toggle('done-text');updateDonut();}
+function updateDonut(){const all=document.querySelectorAll('.todo-item'),done=document.querySelectorAll('.todo-cb.done').length,total=all.length,pct=Math.round((done/total)*100);donutChart.data.datasets[0].data=[done,total-done];donutChart.update();document.getElementById('done-pct').textContent=pct+'%';document.getElementById('done-cnt').textContent=done;document.getElementById('total-cnt').textContent=total;}
+function showAddTodo(){const r=document.getElementById('add-todo-row');r.classList.toggle('show');if(r.classList.contains('show'))document.getElementById('new-todo-input').focus();}
+function addTodo(){const i=document.getElementById('new-todo-input'),v=i.value.trim();if(!v)return;const l=document.getElementById('todo-list'),el=document.createElement('div');el.className='todo-item';el.onclick=function(){toggleTodo(this)};el.innerHTML=`<div class="todo-cb"></div><div class="todo-text">${v}</div><div class="todo-badge badge-normal">일반</div>`;l.appendChild(el);i.value='';document.getElementById('add-todo-row').classList.remove('show');updateDonut();}
+
+// ===== WORK CHATBOT =====
+const DASH_CTX=`현재 대시보드: KPI 매출94%,프로젝트78%,CS처리율62%,팀효율88%. 마일스톤: ISO인증D-2(45%), 결산보고D-8(72%), ERP이관D-24(88%). 경고: CS하락3주연속, ISO지연. 팀원: 김지수(과부하), 이준혁(정상), 박소연(외근), 최민재(정상). 일반 행정업무 담당자를 돕는 AI 어시스턴트. 한국어로 간결하게 답변하세요.`;
+async function sendChat(){
+  const inp=document.getElementById('chat-in'),msg=inp.value.trim();if(!msg)return;
+  const msgs=document.getElementById('chat-msgs');inp.value='';document.getElementById('chat-btn').disabled=true;
+  const u=document.createElement('div');u.className='msg user';u.textContent=msg;msgs.appendChild(u);
+  const l=document.createElement('div');l.className='msg ai loading';l.textContent='분석 중...';msgs.appendChild(l);msgs.scrollTop=msgs.scrollHeight;
+  try{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:DASH_CTX,messages:[{role:'user',content:msg}]})});const d=await r.json();l.classList.remove('loading');l.textContent=d.content?.[0]?.text||'응답 오류';}catch(e){l.classList.remove('loading');l.textContent='연결 오류가 발생했습니다.';}
+  msgs.scrollTop=msgs.scrollHeight;document.getElementById('chat-btn').disabled=false;
+}
+
+// ===== LAW MODAL =====
+let lawHistory=[];
+
+function openLawModal(){document.getElementById('lawModal').style.display='flex';}
+function closeLawModal(){document.getElementById('lawModal').style.display='none';}
+
+function setLawQ(q){document.getElementById('law-chat-in').value=q;document.getElementById('law-chat-in').focus();}
+
+async function sendLawChat(){
+  const inp=document.getElementById('law-chat-in'),msg=inp.value.trim();if(!msg)return;
+  const msgs=document.getElementById('law-chat-msgs');
+  inp.value='';document.getElementById('law-send-btn').disabled=true;
+
+  const u=document.createElement('div');u.className='msg user';u.textContent=msg;msgs.appendChild(u);
+  const l=document.createElement('div');l.className='msg law loading';l.textContent='한국법령 데이터베이스 검색 중...';msgs.appendChild(l);
+  msgs.scrollTop=msgs.scrollHeight;
+
+  lawHistory.push({role:'user',content:msg});
+
+  const SYS=`당신은 한국법령 MCP 서버(https://korean-law-mcp.fly.dev/mcp)에 연결된 AI 법률 자문 어시스턴트입니다.
+한국 법령·판례·행정심판 전문가로서 다음 원칙을 따르세요:
+1. 관련 법령명과 조항을 정확히 인용하세요 (예: 근로기준법 제26조)
+2. 실무적으로 적용 가능한 구체적인 답변을 제공하세요
+3. 기업 행정 담당자가 이해할 수 있는 쉬운 언어로 설명하세요
+4. 판례나 행정심판 사례가 있으면 함께 안내하세요
+5. 전문 변호사 상담이 필요한 경우 명시하세요
+6. 답변 형식: 핵심 요약 → 관련 법령 → 실무 가이드 → 주의사항 순으로 구성하세요`;
+
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        system:SYS,
+        messages:lawHistory,
+        mcp_servers:[{type:'url',url:'https://korean-law-mcp.fly.dev/mcp?oc=021216',name:'korean-law-mcp'}]
+      })
+    });
+    const d=await r.json();
+    const text=d.content?.filter(c=>c.type==='text').map(c=>c.text).join('\n')||'응답 오류';
+    l.classList.remove('loading');
+    l.innerHTML=formatLawResponse(text);
+    lawHistory.push({role:'assistant',content:text});
+  }catch(e){
+    l.classList.remove('loading');
+    // fallback: use Claude alone without MCP
+    try{
+      const r2=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:lawHistory})});
+      const d2=await r2.json();
+      const text2=d2.content?.[0]?.text||'응답 오류';
+      l.innerHTML=formatLawResponse(text2);
+      lawHistory.push({role:'assistant',content:text2});
+    }catch(e2){l.textContent='연결 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';}
+  }
+  msgs.scrollTop=msgs.scrollHeight;
+  document.getElementById('law-send-btn').disabled=false;
+}
+
+function formatLawResponse(text){
+  // highlight law citations like 근로기준법 제26조
+  return text
+    .replace(/\n/g,'<br>')
+    .replace(/([\가-힣]+법\s*제\d+조(?:의\d+)?(?:\s*제\d+항)?)/g,'<span class="law-cite"><i class="ti ti-gavel" style="font-size:10px"></i>$1</span>')
+    .replace(/\*\*(.*?)\*\*/g,'<b>$1</b>');
+}
+
+// ===== CARD MODAL =====
+let uploadedFiles=[],analysisData='',selectedPeriod='monthly';
+let cardCatChart=null,cardTrendChart=null;
+
+function openCardModal(){document.getElementById('cardModal').style.display='flex';}
+function closeCardModal(){document.getElementById('cardModal').style.display='none';}
+
+function switchCardTab(name,btn){
+  document.querySelectorAll('#cardModal .tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#cardModal .tab-content').forEach(t=>t.classList.remove('active'));
+  document.getElementById('card-tab-'+name).classList.add('active');
+}
+
+function selectPeriod(btn,p){document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');selectedPeriod=p;}
+function handleDrag(e){e.preventDefault();document.getElementById('uploadZone').classList.add('drag');}
+function handleDragLeave(){document.getElementById('uploadZone').classList.remove('drag');}
+function handleDrop(e){e.preventDefault();document.getElementById('uploadZone').classList.remove('drag');handleFilesRaw(e.dataTransfer.files);}
+function handleFiles(e){handleFilesRaw(e.target.files);}
+function handleFilesRaw(files){Array.from(files).forEach(f=>uploadedFiles.push(f));renderFileList();}
+function removeFile(i){uploadedFiles.splice(i,1);renderFileList();}
+function renderFileList(){
+  const fl=document.getElementById('fileList');
+  if(!uploadedFiles.length){fl.innerHTML='';document.getElementById('uploadActions').style.display='none';return;}
+  let html='<div style="margin-bottom:4px;font-size:10px;color:var(--text3)">업로드된 파일:</div>';
+  uploadedFiles.forEach((f,i)=>{const ext=f.name.split('.').pop().toLowerCase(),icon=['jpg','jpeg','png'].includes(ext)?'ti-photo':ext==='pdf'?'ti-file-type-pdf':'ti-file-spreadsheet';html+=`<div class="file-chip"><i class="ti ${icon}"></i>${f.name} <span style="color:var(--text3)">(${(f.size/1024).toFixed(0)}KB)</span> <span style="cursor:pointer;color:var(--text3);margin-left:4px" onclick="removeFile(${i})">×</span></div>`;});
+  fl.innerHTML=html;document.getElementById('uploadActions').style.display='block';
+}
+function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
+
+async function runAnalysis(){
+  if(!uploadedFiles.length){alert('파일을 먼저 업로드해주세요.');return;}
+  ['monthly-result','quarterly-result','annual-result'].forEach(id=>{document.getElementById(id).innerHTML=`<div class="analysis-loading"><div class="spinner p"></div><p style="font-size:12px">AI가 분석 중입니다...</p></div>`;});
+  // auto switch to monthly tab
+  document.querySelectorAll('#cardModal .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#cardModal .tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelector('#cardModal .tab:nth-child(2)').classList.add('active');
+  document.getElementById('card-tab-monthly').classList.add('active');
+
+  const fileContents=[];
+  for(const f of uploadedFiles){
+    const ext=f.name.split('.').pop().toLowerCase();
+    if(['xlsx','xls'].includes(ext)){const buf=await f.arrayBuffer();const wb=XLSX.read(buf,{type:'array'});let text='';wb.SheetNames.forEach(s=>{text+='['+s+']\n'+XLSX.utils.sheet_to_csv(wb.Sheets[s])+'\n\n';});fileContents.push({name:f.name,type:'엑셀',content:text.slice(0,8000)});}
+    else if(['jpg','jpeg','png'].includes(ext)){const b64=await toBase64(f);fileContents.push({name:f.name,type:'이미지',base64:b64,mime:f.type});}
+    else if(ext==='csv'){const txt=await f.text();fileContents.push({name:f.name,type:'CSV',content:txt.slice(0,8000)});}
+    else{fileContents.push({name:f.name,type:'PDF',content:'[PDF: '+f.name+']'});}
+  }
+
+  const cp=[];
+  let tp=`법인카드 사용 내역을 분석하세요. 파일: ${fileContents.map(f=>f.name).join(', ')}\n`;
+  fileContents.forEach(f=>{if(f.content)tp+=`=== ${f.name} ===\n${f.content}\n\n`;});
+  tp+=`순수 JSON만 반환 (마크다운 없이): {"total":숫자,"txCount":숫자,"topCategory":"문자","avgPerTx":숫자,"categories":[{"name":"명","amount":숫자,"pct":숫자}],"monthlyTrend":[{"month":"월","amount":숫자}],"insights":[{"type":"warn|ok|info|tip","icon":"이모지","title":"제목","desc":"설명","tag":"태그"}],"summary":"요약","recommendations":"추천사항"}`;
+  cp.push({type:'text',text:tp});
+  fileContents.forEach(f=>{if(f.base64)cp.push({type:'image',source:{type:'base64',media_type:f.mime,data:f.base64}});});
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:cp}]})});
+    const data=await res.json();
+    const raw=data.content?.[0]?.text||'{}';
+    let parsed;try{parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());}catch(e){parsed=null;}
+    analysisData=parsed?JSON.stringify(parsed):raw;
+    if(parsed){renderMonthly(parsed);renderQuarterly(parsed);renderAnnual(parsed);}
+    else{const fb=`<div class="ai-answer">${raw}</div>`;['monthly-result','quarterly-result','annual-result'].forEach(id=>document.getElementById(id).innerHTML=fb);}
+  }catch(e){['monthly-result','quarterly-result','annual-result'].forEach(id=>document.getElementById(id).innerHTML='<div class="warn-item r"><i class="ti ti-alert-triangle"></i>분석 오류가 발생했습니다.</div>');}
+}
+
+function renderMonthly(d){
+  document.getElementById('monthly-result').innerHTML=`
+  <div class="summary-grid">
+    <div class="sum-card"><div class="sum-val" style="color:var(--purple)">${(d.total||0).toLocaleString()}원</div><div class="sum-label">총 사용액</div></div>
+    <div class="sum-card"><div class="sum-val" style="color:var(--blue)">${d.txCount||0}건</div><div class="sum-label">거래 건수</div></div>
+    <div class="sum-card"><div class="sum-val" style="color:var(--yellow)">${(d.avgPerTx||0).toLocaleString()}원</div><div class="sum-label">건당 평균</div></div>
+    <div class="sum-card"><div class="sum-val" style="color:var(--green);font-size:13px">${d.topCategory||'—'}</div><div class="sum-label">최다 지출</div></div>
+  </div>
+  <div class="category-row">
+    <div class="chart-card" style="padding:12px"><div class="chart-title"><i class="ti ti-chart-donut"></i> 카테고리별</div><div style="position:relative;height:180px"><canvas id="catChart" role="img" aria-label="카테고리 지출">카테고리 지출</canvas></div></div>
+    <div class="chart-card" style="padding:12px"><div class="chart-title"><i class="ti ti-trending-up"></i> 월별 추이</div><div style="position:relative;height:180px"><canvas id="trendChart" role="img" aria-label="월별 추이">월별 지출</canvas></div></div>
+  </div>
+  <div class="insight-list" id="insight-list-m"></div>
+  <div class="sec-title mb12" style="font-size:11px"><i class="ti ti-file-description"></i> 종합 요약</div>
+  <div class="ai-answer">${(d.summary||'').replace(/\n/g,'<br>')}</div>
+  <div class="sec-title mb12" style="font-size:11px;margin-top:10px"><i class="ti ti-checklist"></i> 절감 추천</div>
+  <div class="ai-answer">${(d.recommendations||'').replace(/\n/g,'<br>')}</div>`;
+
+  const il=document.getElementById('insight-list-m');
+  (d.insights||[]).forEach(ins=>{const tm={warn:'it-warn',ok:'it-ok',info:'it-info',tip:'it-tip'};il.innerHTML+=`<div class="insight-item"><div class="insight-icon">${ins.icon||'💡'}</div><div class="insight-body"><div class="insight-title">${ins.title||''}</div><div class="insight-desc">${ins.desc||''}</div><span class="insight-tag ${tm[ins.type]||'it-info'}">${ins.tag||''}</span></div></div>`;});
+
+  if(cardCatChart)cardCatChart.destroy();
+  const cats=d.categories||[];
+  if(cats.length)cardCatChart=new Chart(document.getElementById('catChart').getContext('2d'),{type:'doughnut',data:{labels:cats.map(c=>c.name),datasets:[{data:cats.map(c=>c.amount),backgroundColor:['#a855f7','#3b82f6','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{display:true,position:'right',labels:{color:'#9ca3b0',font:{size:9},boxWidth:10,padding:6}}}}});
+
+  if(cardTrendChart)cardTrendChart.destroy();
+  const tr=d.monthlyTrend||[];
+  if(tr.length)cardTrendChart=new Chart(document.getElementById('trendChart').getContext('2d'),{type:'line',data:{labels:tr.map(t=>t.month),datasets:[{label:'지출',data:tr.map(t=>t.amount),borderColor:'#a855f7',backgroundColor:'#a855f720',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#a855f7'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9ca3b0',font:{size:9}},grid:{color:'#ffffff08'}},y:{ticks:{color:'#9ca3b0',font:{size:9},callback:v=>(v/10000).toFixed(0)+'만'},grid:{color:'#ffffff08'}}}}});
+}
+function renderQuarterly(d){document.getElementById('quarterly-result').innerHTML=`<div class="summary-grid"><div class="sum-card"><div class="sum-val" style="color:var(--purple)">${(d.total||0).toLocaleString()}원</div><div class="sum-label">분기 총액</div></div><div class="sum-card"><div class="sum-val" style="color:var(--blue)">${d.txCount||0}건</div><div class="sum-label">거래 건수</div></div><div class="sum-card"><div class="sum-val" style="color:var(--yellow)">${(d.avgPerTx||0).toLocaleString()}원</div><div class="sum-label">건당 평균</div></div><div class="sum-card"><div class="sum-val" style="color:var(--green);font-size:13px">${d.topCategory||'—'}</div><div class="sum-label">최다 지출</div></div></div>${(d.insights||[]).map(ins=>`<div class="insight-item" style="margin-bottom:6px"><div class="insight-icon">${ins.icon||'💡'}</div><div class="insight-body"><div class="insight-title">${ins.title||''}</div><div class="insight-desc">${ins.desc||''}</div></div></div>`).join('')}<div class="ai-answer">${(d.summary||'').replace(/\n/g,'<br>')}</div>`;}
+function renderAnnual(d){document.getElementById('annual-result').innerHTML=`<div class="summary-grid"><div class="sum-card"><div class="sum-val" style="color:var(--purple)">${(d.total||0).toLocaleString()}원</div><div class="sum-label">연간 총액</div></div><div class="sum-card"><div class="sum-val" style="color:var(--blue)">${d.txCount||0}건</div><div class="sum-label">거래 건수</div></div><div class="sum-card"><div class="sum-val" style="color:var(--yellow)">${Math.round((d.total||0)/12).toLocaleString()}원</div><div class="sum-label">월평균</div></div><div class="sum-card"><div class="sum-val" style="color:var(--green);font-size:13px">${d.topCategory||'—'}</div><div class="sum-label">최다 지출</div></div></div>${(d.insights||[]).map(ins=>`<div class="insight-item" style="margin-bottom:6px"><div class="insight-icon">${ins.icon||'💡'}</div><div class="insight-body"><div class="insight-title">${ins.title||''}</div><div class="insight-desc">${ins.desc||''}</div></div></div>`).join('')}<div class="ai-answer">${(d.recommendations||'').replace(/\n/g,'<br>')}</div>`;}
+
+async function sendCardChat(){
+  const inp=document.getElementById('card-chat-in'),msg=inp.value.trim();if(!msg)return;inp.value='';
+  const msgs=document.getElementById('card-chat-msgs');
+  const u=document.createElement('div');u.className='msg user';u.textContent=msg;msgs.appendChild(u);
+  const l=document.createElement('div');l.className='msg ai loading';l.textContent='분석 중...';msgs.appendChild(l);msgs.scrollTop=msgs.scrollHeight;
+  const sys=`법인카드 사용 내역 분석 전문가. ${analysisData?'분석 결과: '+analysisData:'아직 업로드된 파일이 없습니다.'} 한국어로 실무적으로 답변하세요.`;
+  try{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:[{role:'user',content:msg}]})});const d=await r.json();l.classList.remove('loading');l.textContent=d.content?.[0]?.text||'응답 오류';}catch(e){l.classList.remove('loading');l.textContent='연결 오류가 발생했습니다.';}
+  msgs.scrollTop=msgs.scrollHeight;
+}
+</script>
+</body>
+</html>
